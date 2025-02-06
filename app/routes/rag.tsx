@@ -149,7 +149,7 @@ export async function action({ request }: Route.ActionArgs) {
     const customPrompt = ChatPromptTemplate.fromMessages([
       [
         "system",
-        `You provide helpful assistant to users. Use the context below to answer questions. Follow these rules:
+        `You provide helpful assistant. Use the context below to answer questions. Follow these rules:
        
         1. Keep answers under 3 paragraphs
         
@@ -160,7 +160,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     const promptTemplate = customPrompt;
 
-    const example_prompt = await promptTemplate.invoke({
+    await promptTemplate.invoke({
       context: "(context goes here)",
       question: "(question goes here)",
     });
