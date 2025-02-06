@@ -45,7 +45,7 @@ export async function action({ request }: Route.ActionArgs) {
   });
 
   const pinecone = new Pinecone({
-    apiKey: process.env.PINECONE_KEY!,
+    apiKey: process.env.PINECONE_API_KEY!,
   });
 
   if (query === "upload") {
