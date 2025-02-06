@@ -10,3 +10,30 @@ body {
     color-scheme: dark;
   }
 }
+
+.upload-wrapper .uploadzone .success {
+  display: none;
+}
+
+.upload-wrapper:hover .uploadzone {
+  border: 2px dashed #666;
+}
+
+.upload-wrapper input[type="file"]:valid + .uploadzone {
+  border-color: #666;
+}
+
+.upload-wrapper input[type="file"]:valid + .uploadzone .success {
+  display: inline-block;
+}
+
+.upload-wrapper input[type="file"]:valid + .uploadzone .default {
+  display: none;
+}
+
+/* .upload-wrapper input[type="file"]:valid + .uploadzone.success {
+  display: none;
+} */
+textarea {
+  field-sizing: content;
+}
