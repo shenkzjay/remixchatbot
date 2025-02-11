@@ -213,6 +213,8 @@ export default function Rag() {
   const [toggleNav, setToggleNav] = useState(false);
   const [isloading, setIsLoading] = useState(false);
   const messageBoxRef = useRef<HTMLDivElement | null>(null);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   console.log({ message });
 
@@ -242,6 +244,9 @@ export default function Rag() {
       ]);
 
       setIsLoading(false);
+    } else {
+      setIsLoading(false);
+      return;
     }
   }, [actionData]);
 
@@ -278,17 +283,20 @@ export default function Rag() {
 
     if (uploadFormRef.current) {
       const formData = new FormData(e.currentTarget);
-
+      setToggleNav(false);
       const userQuestion = formData.get("questions") as string;
       formData.append("_query", "questions");
-
-      console.log({ userQuestion });
 
       if (userQuestion.trim()) {
         setMessage((prev) => [...prev, { role: "user", content: userQuestion }]);
         // setMessage((prev) => [...prev, { role: "ai", content: "" }]);
         submit(formData, { method: "post" });
+      } else {
+        setIsLoading(false);
+        return;
       }
+
+      // setToggleNav(true);
     }
 
     e.currentTarget?.reset();
@@ -331,6 +339,24 @@ export default function Rag() {
     setToggleNav(!toggleNav);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    const diff = touchEndX.current - touchStartX.current;
+
+    if (diff > 50) {
+      setToggleNav(true);
+    } else if (diff < -50) {
+      setToggleNav(false);
+    }
+  };
+
   console.log({ allFiles });
   console.log({ message });
 
@@ -345,9 +371,16 @@ export default function Rag() {
         >
           <AddIcon />
         </button>
-        <p className="absolute top-0 z-10 text-white m-6 pl-8">Click to upload doc</p>
+        <p className="absolute top-0 z-10 text-white m-6 pl-8">
+          {toggleNav ? "Close" : "Upload doc "}
+        </p>
       </div>
-      <aside className="relative">
+      <aside
+        className="relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           className={` ${
             toggleNav
@@ -436,18 +469,23 @@ export default function Rag() {
       <div className="h-screen w-full flex flex-col justify-between items-center">
         <div
           ref={messageBoxRef}
-          className={`text-white h-[90vh] p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
+          className={`text-white max-h-[80vh] p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
         >
           {message &&
             message.map((msg, idx) => (
-              <div key={idx} className={`mb-6 ${msg.role === "user" ? "text-right" : "text-left"}`}>
+              <div
+                key={idx}
+                className={`mb-6 ${
+                  msg.role === "user" ? "flex justify-end text-left" : "text-left"
+                }`}
+              >
                 <div
                   className={`inline-block max-w-[80%] rounded-lg p-2 ${
                     msg.role === "user" ? "  text-[#999]" : "bg-gray-300 text-gray-800"
                   } bg-[#333] p-2`}
                 >
                   {msg.role === "user" ? (
-                    <div className=" text-[#999] text-sm">{msg.content}</div>
+                    <div className=" text-[#999] text-sm text-left">{msg.content}</div>
                   ) : (
                     <Markdown className="text-sm prose ">{msg.content}</Markdown>
                   )}
@@ -466,7 +504,7 @@ export default function Rag() {
           method="post"
           ref={uploadFormRef}
           onSubmit={handleSubmit}
-          className=" w-full md:w-auto"
+          className=" w-full md:w-auto fixed md:static bottom-0 bg-[#262626]"
         >
           {message.length === 0 && (
             <p className="mt-6 mx-6 md:mx-0 text-slate-400 text-2xl">
@@ -481,6 +519,7 @@ export default function Rag() {
               placeholder="Ask me"
               name="questions"
               id="questions"
+              required
             ></textarea>
             <div className="flex flex-row justify-between mt-4">
               <button className=" rounded-xl text-white" type="submit">
