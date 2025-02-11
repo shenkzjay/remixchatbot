@@ -19,6 +19,8 @@ import { PineconeStore } from "@langchain/pinecone";
 import { SelfQueryRetriever } from "langchain/retrievers/self_query";
 import { PineconeTranslator } from "@langchain/pinecone";
 import { useEffect, useState, useRef } from "react";
+import { AddIcon } from "public/icons/add";
+import Markdown from "react-markdown";
 
 export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
@@ -26,6 +28,8 @@ export async function action({ request }: Route.ActionArgs) {
   const file = formData.get("uploadfile") as File;
 
   const query = formData.get("_query");
+
+  const intent = formData.get("intent");
 
   const questions = formData.get("questions") as string;
 
@@ -44,9 +48,13 @@ export async function action({ request }: Route.ActionArgs) {
     maxRetries: 2,
   });
 
+  const indexName = "quickstart";
+
   const pinecone = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY!,
   });
+
+  const pineconeIndex = pinecone.Index(indexName);
 
   if (query === "upload") {
     //pdf document loader
@@ -66,11 +74,14 @@ export async function action({ request }: Route.ActionArgs) {
 
     const chunks = await splitter.splitDocuments(pdf);
 
-    // console.log(chunks);
+    chunks.forEach((chunk) => {
+      chunk.metadata = {
+        ...chunk.metadata,
+        filename: file.name,
+      };
+    });
 
-    const indexName = "quickstart";
-
-    const pineconeIndex = pinecone.Index(indexName);
+    console.log(chunks);
 
     const embeddings = new MistralAIEmbeddings({
       model: "mistral-embed",
@@ -101,50 +112,6 @@ export async function action({ request }: Route.ActionArgs) {
     const vectorStore = await PineconeStore.fromExistingIndex(embeddings, {
       pineconeIndex: pineconeIndex,
     });
-
-    if (!vectorStore) {
-      console.log("No vector storage available");
-    }
-
-    const selfQueryRetriever = SelfQueryRetriever.fromLLM({
-      llm: llm,
-      vectorStore: vectorStore,
-      /** A short summary of what the document contents represent. */
-      documentContents: "Brief summary",
-      attributeInfo: [],
-      /**
-       * We need to create a basic translator that translates the queries into a
-       * filter format that the vector store can understand. We provide a basic translator
-       * translator here, but you can create your own translator by extending BaseTranslator
-       * abstract class. Note that the vector store needs to support filtering on the metadata
-       * attributes you want to query on.
-       */
-      structuredQueryTranslator: new PineconeTranslator(),
-    });
-
-    //     const prompt =
-    //       ChatPromptTemplate.fromTemplate(`Answer the question based only on the context provided.
-
-    // Context: {context}
-
-    // Question: {question}`);
-
-    //     const formatDocs = (docs: Document[]) => {
-    //       return docs.map((doc) => JSON.stringify(doc)).join("\n\n");
-    //     };
-
-    //     const ragChain = RunnableSequence.from([
-    //       {
-    //         context: selfQueryRetriever.pipe(formatDocs),
-    //         question: new RunnablePassthrough(),
-    //       },
-    //       prompt,
-    //       llm,
-    //       new StringOutputParser(),
-    //     ]);
-
-    //     await ragChain.invoke("Who is Olajide seun");
-    // const promptTemplate = await pull<ChatPromptTemplate>("rlm/rag-prompt");
 
     const customPrompt = ChatPromptTemplate.fromMessages([
       [
@@ -210,6 +177,24 @@ export async function action({ request }: Route.ActionArgs) {
 
     return { result };
   }
+
+  if (query === "deletefile") {
+    console.log(file?.name);
+
+    const filebtn = formData.get("btnfile") as string;
+
+    console.log(filebtn);
+
+    try {
+      const deleteFile = await pineconeIndex.deleteMany({
+        filename: { $eq: filebtn },
+      });
+
+      console.log({ deleteFile });
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }
 
 export default function Rag() {
@@ -225,6 +210,9 @@ export default function Rag() {
   const submitUploadRef = useRef<HTMLFormElement | null>(null);
   const [textareaInput, setTextareaInput] = useState("");
   const [message, setMessage] = useState<MessageProps[]>([]);
+  const [toggleNav, setToggleNav] = useState(false);
+  const [isloading, setIsLoading] = useState(false);
+  const messageBoxRef = useRef<HTMLDivElement | null>(null);
 
   console.log({ message });
 
@@ -233,12 +221,27 @@ export default function Rag() {
   const actionData = useActionData();
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (messageBoxRef.current) {
+        messageBoxRef.current.scrollTo({
+          top: messageBoxRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 0);
+
+    return () => clearTimeout(timeout);
+  }, [message, isloading]);
+
+  useEffect(() => {
     if (actionData?.result) {
       setMessage((prevMessages) => [
         ...prevMessages,
         // { role: "user", content: actionData.result.question as string },
         { role: "ai", content: actionData.result.answer as string },
       ]);
+
+      setIsLoading(false);
     }
   }, [actionData]);
 
@@ -263,13 +266,16 @@ export default function Rag() {
   };
 
   const handleDeleteFile = (file: string, e: React.MouseEvent<HTMLButtonElement>) => {
-    setAllfileUpload(allFiles.filter((files, _) => files !== file));
-    localStorage.removeItem("file");
+    // setAllfileUpload(allFiles.filter((files, _) => files !== file));
+    // localStorage.removeItem("file");
     setToggleDisplay(false);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    const loadingTimeout = setTimeout(() => setIsLoading(true), 300);
+
     if (uploadFormRef.current) {
       const formData = new FormData(e.currentTarget);
 
@@ -285,9 +291,11 @@ export default function Rag() {
       }
     }
 
-    // setToggleDisplay(true);
-
     e.currentTarget?.reset();
+
+    return () => {
+      clearTimeout(loadingTimeout);
+    };
   };
 
   const handleSubmitFile = (e: React.FormEvent<HTMLFormElement>) => {
@@ -319,114 +327,162 @@ export default function Rag() {
     }
   };
 
+  const handleToggleAddButton = () => {
+    setToggleNav(!toggleNav);
+  };
+
   console.log({ allFiles });
   console.log({ message });
 
   return (
-    <section className="flex bg-[#262626]">
-      <div className="w-[20rem] border-r p-6 border-r-[#333]">
-        <Form
-          method="post"
-          className=""
-          encType="multipart/form-data"
-          onSubmit={handleSubmitFile}
-          ref={submitUploadRef}
+    <section className="flex bg-[#262626] relative">
+      {/* side menubar */}
+      <div className="md:hidden flex flex-row" role="button" onClick={handleToggleAddButton}>
+        <button
+          className={` ${
+            toggleNav ? "[transform:rotate(45deg)]" : "[transform:rotate(0)]"
+          } z-50 m-6 text-white absolute top-0 [transform-origin:0_0 ] [transition:_transform_300ms_linear] burst`}
         >
-          <div className="upload-wrapper success  w-full relative">
-            <label className="sr-only">Upload file</label>
-            <input type="hidden" name="_query" id="_query" value="upload" />
-            <input
-              required
-              onChange={(e) => handleFileUpload(e)}
-              type="file"
-              name="uploadfile"
-              id="uploadfile"
-              className=" absolute top-0 left-0 right-0 bottom-0 opacity-0 cursor-pointer"
-            />
-            <div className="uploadzone success w-full p-[20px] border border-dashed border-[#666] text-center bg-[#333] [transition:_background-color_0.3s_ease-in-out] rounded-[10px] text-slate-400">
-              <div className="default flex flex-col justify-center items-center gap-4">
-                <figure className="w-10 h-10 bg-[#f4f4f4] flex flex-row items-center justify-center rounded-full"></figure>
-                <pre className="text-[12px] text-wrap text-buttongray">
-                  <b className="text-primary flex text-center justify-center">Click to upload</b>
-                  or <br />
-                  drag and drop Pdf (max. 25MB)
-                </pre>
+          <AddIcon />
+        </button>
+        <p className="absolute top-0 z-10 text-white m-6 pl-8">Click to upload doc</p>
+      </div>
+      <aside className="relative">
+        <div
+          className={` ${
+            toggleNav
+              ? "[transform:_translatex(0px)] w-[400px] h-full bg-[#333]"
+              : "[transform:_translatex(-100vw)]  h-full bg-[#333] "
+          } [transition:_transform_300ms_linear] md:[transform:_translatex(0px)] fixed md:static md:flex md:flex-col md:w-[15rem] w-full border-r p-6 border-r-[#333] pt-20`}
+        >
+          <Form
+            method="post"
+            className=""
+            encType="multipart/form-data"
+            onSubmit={handleSubmitFile}
+            ref={submitUploadRef}
+          >
+            <div className="upload-wrapper success  w-full relative">
+              <label className="sr-only">Upload file</label>
+              <input type="hidden" name="_query" id="_query" value="upload" />
+              <input
+                required
+                onChange={(e) => handleFileUpload(e)}
+                type="file"
+                name="uploadfile"
+                id="uploadfile"
+                className=" absolute top-0 left-0 right-0 bottom-0 opacity-0 cursor-pointer"
+              />
+              <div className="uploadzone success w-full p-[20px] border border-dashed border-[#666] text-center bg-[#333] [transition:_background-color_0.3s_ease-in-out] rounded-[10px] text-slate-400">
+                <div className="default flex flex-col justify-center items-center gap-4">
+                  <figure className="w-10 h-10 bg-[#f4f4f4] flex flex-row items-center justify-center rounded-full"></figure>
+                  <pre className="text-[12px] text-wrap text-buttongray">
+                    <b className="text-primary flex text-center justify-center">Click to upload</b>
+                    or <br />
+                    drag and drop Pdf (max. 25MB)
+                  </pre>
 
-                {/* <button
+                  {/* <button
                   type="button"
                   className="px-8 py-2 font-semibold rounded-[10px] border border-[#666] border-primary text-primary"
                 >
                   Browse Files
                 </button> */}
+                </div>
+                <span className="success text-buttongray flex py-12 min-h-full text-xs text-wrap w-full overflow-clip">
+                  {file?.name} - {`${(file?.size! / 1024).toLocaleString()}kb`}
+                  <br />
+                  {/* <i className="text-primary">{}</i> */}
+                </span>
               </div>
-              <span className="success text-buttongray flex py-12 min-h-full text-xs text-wrap w-full overflow-clip">
-                {file?.name} - {`${(file?.size! / 1024).toLocaleString()}kb`}
-                <br />
-                {/* <i className="text-primary">{}</i> */}
-              </span>
             </div>
-          </div>
-          <div className="flex justify-center group">
-            <button
-              type="submit"
-              className="group-hover:text-slate-200 mt-6 px-4 py-2 text-slate-400 rounded-xl bg-gray-700 text-sm"
-            >
-              Upload file
-            </button>
-          </div>
-        </Form>
+            <div className="flex justify-center group">
+              <button
+                type="submit"
+                className="group-hover:text-slate-200 mt-6 px-4 py-2 text-slate-400 rounded-xl bg-gray-700 text-sm"
+              >
+                Upload file
+              </button>
+            </div>
+          </Form>
 
-        <div className="mt-24 flex flex-col gap-4">
-          <span className="text-slate-400">List of uploaded files</span>
-          <ul className=" flex flex-col gap-4  h-[18rem] overflow-y-scroll ">
-            {allFiles &&
-              allFiles.map((file, idx) => (
-                <li
-                  key={idx}
-                  className="text-white flex flex-row gap-4 bg-[#333] py-1 px-1 rounded-xl w-fit text-xs justify-center items-center border border-slate-600"
-                >
-                  <p> {`${file}` || null}</p>
-                  <button
-                    onClick={(e) => handleDeleteFile(file, e)}
-                    className="bg-white/30 hover:bg-red-500 p-1 w-5 leading-none rounded-xl"
+          <div className="mt-24 flex flex-col gap-4">
+            <span className="text-slate-400">List of uploaded files</span>
+            <ul className=" flex flex-col gap-4  h-[18rem] overflow-y-scroll ">
+              {allFiles &&
+                allFiles.map((file, idx) => (
+                  <li
+                    key={idx}
+                    className="text-white flex flex-row gap-4 bg-[#333] py-1 px-1 rounded-xl w-fit text-xs justify-center items-center border border-slate-600"
                   >
-                    x
-                  </button>
-                </li>
-              ))}
-          </ul>
+                    <p> {`${file}` || null}</p>
+                    <Form method="post">
+                      <input type="hidden" id="btnfile" name="btnfile" value={file} />
+                      <button
+                        name="_query"
+                        value="deletefile"
+                        onClick={(e) => handleDeleteFile(file, e)}
+                        className="bg-white/30 hover:bg-red-500 p-1 w-5 leading-none rounded-xl"
+                      >
+                        x
+                      </button>
+                    </Form>
+                  </li>
+                ))}
+            </ul>
+          </div>
         </div>
-      </div>
+      </aside>
       <div className="h-screen w-full flex flex-col justify-between items-center">
-        <div className={`text-white h-[90vh] p-4  rounded-xl  overflow-y-scroll mt-12 w-[45vw] `}>
+        <div
+          ref={messageBoxRef}
+          className={`text-white h-[90vh] p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
+        >
           {message &&
             message.map((msg, idx) => (
               <div key={idx} className={`mb-6 ${msg.role === "user" ? "text-right" : "text-left"}`}>
                 <div
                   className={`inline-block max-w-[80%] rounded-lg p-2 ${
-                    msg.role === "user" ? "bg-gray-200 text-gray-800" : "bg-[#262626] text-[#999]"
+                    msg.role === "user" ? "  text-[#999]" : "bg-gray-300 text-gray-800"
                   } bg-[#333] p-2`}
                 >
-                  <span className="text-sm">{msg.content}</span>
+                  {msg.role === "user" ? (
+                    <div className=" text-[#999] text-sm">{msg.content}</div>
+                  ) : (
+                    <Markdown className="text-sm prose ">{msg.content}</Markdown>
+                  )}
                 </div>
               </div>
             ))}
+
+          {isloading && (
+            <div className="bg-[#444] w-fit h-auto p-2 rounded-xl">
+              <span className="loader flex"></span>
+            </div>
+          )}
         </div>
 
-        <Form method="post" ref={uploadFormRef} onSubmit={handleSubmit}>
+        <Form
+          method="post"
+          ref={uploadFormRef}
+          onSubmit={handleSubmit}
+          className=" w-full md:w-auto"
+        >
           {message.length === 0 && (
-            <p className="mt-6 text-slate-400 text-2xl">Who do you want to know about the doc?</p>
+            <p className="mt-6 mx-6 md:mx-0 text-slate-400 text-2xl">
+              Who do you want to know about the doc?
+            </p>
           )}
-          <div className="flex mt-6  flex-col justify-between w-[40rem] items-center  bg-[#333] p-4 rounded-xl">
+          <div className="flex flex-row my-6 mx-6 md:mx-0  justify-between  md:w-[40rem] items-end bg-[#333] p-4 rounded-xl">
             <input type="hidden" name="_query" id="_query" value="questions" />
 
             <textarea
-              className="py-2 focus:border-0 focus:outline-0 min-h-12 resize-none ring-0 w-full bg-[#333]  border-[#666] px-2 rounded-xl text-slate-300"
+              className="py-2  focus:border-0 focus:outline-0 min-h-12 resize-none ring-0 w-full bg-[#333]  border-[#666] px-2 rounded-xl text-slate-300"
               placeholder="Ask me"
               name="questions"
               id="questions"
             ></textarea>
-            <div className="flex flex-row justify-between w-full mt-4">
+            <div className="flex flex-row justify-between mt-4">
               <button className=" rounded-xl text-white" type="submit">
                 <svg
                   width="32"
