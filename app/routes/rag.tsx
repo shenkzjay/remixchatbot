@@ -371,9 +371,7 @@ export default function Rag() {
         >
           <AddIcon />
         </button>
-        <p className="absolute top-0 z-10 text-white m-6 pl-8">
-          {toggleNav ? "Close" : "Upload doc "}
-        </p>
+        <p className="absolute top-0 z-10 text-white m-6 pl-8">{toggleNav ? "" : "Upload doc "}</p>
       </div>
       <aside
         className="relative"
@@ -386,7 +384,7 @@ export default function Rag() {
             toggleNav
               ? "[transform:_translatex(0px)] w-[400px] h-full bg-[#333]"
               : "[transform:_translatex(-100vw)]  h-full bg-[#333] "
-          } [transition:_transform_300ms_linear] md:[transform:_translatex(0px)] fixed md:static md:flex md:flex-col md:w-[15rem] w-full border-r p-6 border-r-[#333] pt-20`}
+          } [transition:_transform_300ms_linear] md:[transform:_translatex(0px)] fixed md:static md:flex md:flex-col md:w-[15rem] w-full border-r p-6 border-r-[#333] pt-20 z-10`}
         >
           <Form
             method="post"
@@ -439,37 +437,39 @@ export default function Rag() {
             </div>
           </Form>
 
-          <div className="mt-24 flex flex-col gap-4">
-            <span className="text-slate-400">List of uploaded files</span>
-            <ul className=" flex flex-col gap-4  h-[18rem] overflow-y-scroll ">
-              {allFiles &&
-                allFiles.map((file, idx) => (
-                  <li
-                    key={idx}
-                    className="text-white flex flex-row gap-4 bg-[#333] py-1 px-1 rounded-xl w-fit text-xs justify-center items-center border border-slate-600"
-                  >
-                    <p> {`${file}` || null}</p>
-                    <Form method="post">
-                      <input type="hidden" id="btnfile" name="btnfile" value={file} />
-                      <button
-                        name="_query"
-                        value="deletefile"
-                        onClick={(e) => handleDeleteFile(file, e)}
-                        className="bg-white/30 hover:bg-red-500 p-1 w-5 leading-none rounded-xl"
-                      >
-                        x
-                      </button>
-                    </Form>
-                  </li>
-                ))}
-            </ul>
-          </div>
+          {allFiles.length > 0 && (
+            <div className="mt-24 flex flex-col gap-4">
+              <span className="text-slate-400">List of uploaded files</span>
+              <ul className=" flex flex-col gap-4  h-[18rem] overflow-y-scroll ">
+                {allFiles &&
+                  allFiles.map((file, idx) => (
+                    <li
+                      key={idx}
+                      className="text-white flex flex-row gap-4 bg-[#333] py-1 px-1 rounded-xl w-fit text-xs justify-center items-center border border-slate-600"
+                    >
+                      <p> {`${file}` || null}</p>
+                      <Form method="post">
+                        <input type="hidden" id="btnfile" name="btnfile" value={file} />
+                        <button
+                          name="_query"
+                          value="deletefile"
+                          onClick={(e) => handleDeleteFile(file, e)}
+                          className="bg-white/30 hover:bg-red-500 p-1 w-5 leading-none rounded-xl"
+                        >
+                          x
+                        </button>
+                      </Form>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
         </div>
       </aside>
-      <div className="h-screen w-full flex flex-col justify-between items-center">
+      <div className="h-[80vh] w-full flex flex-col justify-between items-center mb-32">
         <div
           ref={messageBoxRef}
-          className={`text-white max-h-[80vh] p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
+          className={`text-white p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
         >
           {message &&
             message.map((msg, idx) => (
@@ -481,11 +481,11 @@ export default function Rag() {
               >
                 <div
                   className={`inline-block max-w-[80%] rounded-lg p-2 ${
-                    msg.role === "user" ? "  text-[#999]" : "bg-gray-300 text-gray-800"
+                    msg.role === "user" ? "  text-slate-300" : "bg-gray-300 text-gray-800"
                   } bg-[#333] p-2`}
                 >
                   {msg.role === "user" ? (
-                    <div className=" text-[#999] text-sm text-left">{msg.content}</div>
+                    <div className=" text-slate-300 text-sm text-left">{msg.content}</div>
                   ) : (
                     <Markdown className="text-sm prose ">{msg.content}</Markdown>
                   )}
