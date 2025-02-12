@@ -2,22 +2,17 @@ import { Form, useActionData, useSubmit } from "react-router";
 import type { Route } from "../+types/root";
 import { ChatMistralAI } from "@langchain/mistralai";
 import { MistralAIEmbeddings } from "@langchain/mistralai";
-import { pull } from "langchain/hub";
+
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
-import { StringOutputParser } from "@langchain/core/output_parsers";
-import { concat } from "@langchain/core/utils/stream";
+
 import { StateGraph } from "@langchain/langgraph";
 
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "node_modules/@langchain/textsplitters/dist";
 import { Document } from "@langchain/core/documents";
 import { Annotation } from "@langchain/langgraph";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-import { SelfQueryRetriever } from "langchain/retrievers/self_query";
-import { PineconeTranslator } from "@langchain/pinecone";
 import { useEffect, useState, useRef } from "react";
 import { AddIcon } from "public/icons/add";
 import Markdown from "react-markdown";
@@ -29,13 +24,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const query = formData.get("_query");
 
-  const intent = formData.get("intent");
-
   const questions = formData.get("questions") as string;
-
-  // console.log({ question });
-
-  // let vectorStore: MemoryVectorStore | null = null;
 
   const formatDocumentsAsString = (documents: Document[]) => {
     return documents.map((document) => document.pageContent).join("\n\n");
@@ -382,8 +371,8 @@ export default function Rag() {
         <div
           className={` ${
             toggleNav
-              ? "[transform:_translatex(0px)] w-[400px] h-full bg-[#333]"
-              : "[transform:_translatex(-100vw)]  h-full bg-[#333] "
+              ? "[transform:_translatex(0px)] w-[400px] h-full bg-[#333] md:bg-transparent"
+              : "[transform:_translatex(-100vw)]  h-full bg-[#333] md:bg-transparent"
           } [transition:_transform_300ms_linear] md:[transform:_translatex(0px)] fixed md:static md:flex md:flex-col md:w-[15rem] w-full border-r p-6 border-r-[#333] pt-20 z-10`}
         >
           <Form
@@ -466,7 +455,7 @@ export default function Rag() {
           )}
         </div>
       </aside>
-      <div className="h-[80vh] w-full flex flex-col justify-between items-center mb-32">
+      <div className="md:h-screen h-[80vh] w-full flex flex-col justify-between items-center mb-32">
         <div
           ref={messageBoxRef}
           className={`text-white p-4 rounded-xl  overflow-y-scroll mt-12 md:w-[45vw] w-full `}
@@ -515,6 +504,7 @@ export default function Rag() {
             <input type="hidden" name="_query" id="_query" value="questions" />
 
             <textarea
+              autoFocus
               className="py-2  focus:border-0 focus:outline-0 min-h-12 resize-none ring-0 w-full bg-[#333]  border-[#666] px-2 rounded-xl text-slate-300"
               placeholder="Ask me"
               name="questions"
